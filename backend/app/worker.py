@@ -9,6 +9,21 @@ from app.config import settings
 from app.database import SessionLocal
 from app import models
 
+def to_python(value):
+    try:
+        import numpy as np
+        if isinstance(value, np.generic):
+            return value.item()
+        if isinstance(value, dict):
+            return {k: to_python(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [to_python(v) for v in value]
+        if isinstance(value, tuple):
+            return tuple(to_python(v) for v in value)
+    except ImportError:
+        pass
+    return value
+
 # Configure Celery logging
 logger = logging.getLogger("app.worker")
 logger.setLevel(logging.INFO)
@@ -213,31 +228,70 @@ def process_image_task(self, job_id: str):
             res = models.AnalysisResult(job_id=job.id)
             db.add(res)
 
-        res.blur_score = blur_score
-        res.blur_threshold = settings.BLUR_THRESHOLD
-        res.is_blurry = is_blurry
-        res.brightness_average = brightness_avg
-        res.brightness_threshold = settings.BRIGHTNESS_THRESHOLD
-        res.is_low_light = is_low_light
-        res.is_duplicate = is_duplicate
-        res.duplicate_similarity = similarity_score
-        res.ocr_raw_text = ocr_raw_text
-        res.ocr_normalized_text = ocr_normalized_text
-        res.ocr_confidence = ocr_confidence
-        res.plate_detected_number = plate_number
-        res.plate_format_valid = plate_format_valid
-        res.plate_confidence = plate_confidence
-        res.dimensions_width = width
-        res.dimensions_height = height
-        res.dimensions_valid = is_valid_dims
-        res.summary_status = summary_status
-        res.summary_confidence = overall_confidence
-        res.summary_issues = issues
+        # Convert values to native Python types
+        p_blur_score = to_python(blur_score)
+        p_blur_threshold = to_python(settings.BLUR_THRESHOLD)
+        p_is_blurry = to_python(is_blurry)
+        p_brightness_average = to_python(brightness_avg)
+        p_brightness_threshold = to_python(settings.BRIGHTNESS_THRESHOLD)
+        p_is_low_light = to_python(is_low_light)
+        p_is_duplicate = to_python(is_duplicate)
+        p_duplicate_similarity = to_python(similarity_score)
+        p_ocr_raw_text = to_python(ocr_raw_text)
+        p_ocr_normalized_text = to_python(ocr_normalized_text)
+        p_ocr_confidence = to_python(ocr_confidence)
+        p_plate_detected_number = to_python(plate_number)
+        p_plate_format_valid = to_python(plate_format_valid)
+        p_plate_confidence = to_python(plate_confidence)
+        p_dimensions_width = to_python(width)
+        p_dimensions_height = to_python(height)
+        p_dimensions_valid = to_python(is_valid_dims)
+        p_summary_status = to_python(summary_status)
+        p_summary_confidence = to_python(overall_confidence)
+        p_summary_issues = to_python(issues)
+
+        # Log confirmation of Python types before database update
+        logger.info(
+            f"[{job_id}] STAGE 8: Confirming Python types before DB write: "
+            f"blur_score={p_blur_score} ({type(p_blur_score).__name__}), "
+            f"is_blurry={p_is_blurry} ({type(p_is_blurry).__name__}), "
+            f"brightness_average={p_brightness_average} ({type(p_brightness_average).__name__}), "
+            f"is_low_light={p_is_low_light} ({type(p_is_low_light).__name__}), "
+            f"is_duplicate={p_is_duplicate} ({type(p_is_duplicate).__name__}), "
+            f"duplicate_similarity={p_duplicate_similarity} ({type(p_duplicate_similarity).__name__}), "
+            f"ocr_confidence={p_ocr_confidence} ({type(p_ocr_confidence).__name__}), "
+            f"plate_confidence={p_plate_confidence} ({type(p_plate_confidence).__name__}), "
+            f"dimensions_width={p_dimensions_width} ({type(p_dimensions_width).__name__}), "
+            f"dimensions_height={p_dimensions_height} ({type(p_dimensions_height).__name__}), "
+            f"dimensions_valid={p_dimensions_valid} ({type(p_dimensions_valid).__name__}), "
+            f"summary_confidence={p_summary_confidence} ({type(p_summary_confidence).__name__})"
+        )
+
+        res.blur_score = p_blur_score
+        res.blur_threshold = p_blur_threshold
+        res.is_blurry = p_is_blurry
+        res.brightness_average = p_brightness_average
+        res.brightness_threshold = p_brightness_threshold
+        res.is_low_light = p_is_low_light
+        res.is_duplicate = p_is_duplicate
+        res.duplicate_similarity = p_duplicate_similarity
+        res.ocr_raw_text = p_ocr_raw_text
+        res.ocr_normalized_text = p_ocr_normalized_text
+        res.ocr_confidence = p_ocr_confidence
+        res.plate_detected_number = p_plate_detected_number
+        res.plate_format_valid = p_plate_format_valid
+        res.plate_confidence = p_plate_confidence
+        res.dimensions_width = p_dimensions_width
+        res.dimensions_height = p_dimensions_height
+        res.dimensions_valid = p_dimensions_valid
+        res.summary_status = p_summary_status
+        res.summary_confidence = p_summary_confidence
+        res.summary_issues = p_summary_issues
 
         # Complete job successfully
         job.status = "completed"
-        job.width = width
-        job.height = height
+        job.width = p_dimensions_width
+        job.height = p_dimensions_height
         job.updated_at = func.now()
         db.commit()
         logger.info(f"[{job_id}] STAGE 8 END: Database updates successfully committed.")

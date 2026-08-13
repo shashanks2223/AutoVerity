@@ -146,3 +146,37 @@ def test_ocr_service_mocked(temp_images, monkeypatch):
     assert raw == "KA 01 AB 1234"
     assert norm == "KA01AB1234"
     assert conf == 0.88  # Average of 0.90, 0.85, 0.95, 0.80
+
+
+def test_numpy_to_python_conversion():
+    """Verify that NumPy scalar types are successfully converted to native Python types."""
+    import numpy as np
+    from app.worker import to_python
+
+    # Test individual scalars
+    assert isinstance(to_python(np.float64(12.34)), float)
+    assert to_python(np.float64(12.34)) == 12.34
+
+    assert isinstance(to_python(np.float32(5.6)), float)
+    assert pytest.approx(to_python(np.float32(5.6)), 0.0001) == 5.6
+
+    assert isinstance(to_python(np.int64(42)), int)
+    assert to_python(np.int64(42)) == 42
+
+    assert isinstance(to_python(np.int32(100)), int)
+    assert to_python(np.int32(100)) == 100
+
+    assert isinstance(to_python(np.bool_(True)), bool)
+    assert to_python(np.bool_(True)) is True
+
+    # Test collections
+    nested_data = {
+        "blur": np.float64(2036.44),
+        "issues": [np.bool_(True), np.int64(10)],
+        "empty_tuple": (np.float32(1.2),)
+    }
+    converted = to_python(nested_data)
+    assert isinstance(converted["blur"], float)
+    assert isinstance(converted["issues"][0], bool)
+    assert isinstance(converted["issues"][1], int)
+    assert isinstance(converted["empty_tuple"][0], float)
