@@ -23,6 +23,8 @@ origins = [
     settings.FRONTEND_URL,
     "http://localhost:5173",
     "http://127.0.0.1:5173",
+    "https://auto-verity.vercel.app",
+    "https://auto-verity-82t9j2g7e-kashyap4.vercel.app",
 ]
 
 app.add_middleware(
