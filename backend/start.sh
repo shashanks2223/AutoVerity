@@ -7,7 +7,7 @@ echo "Running database migrations..."
 alembic upgrade head
 
 echo "Starting Celery worker in the background..."
-celery -A app.worker.celery_app worker --loglevel=info &
+celery -A app.worker.celery_app worker --loglevel=info --pool=solo &
 CELERY_PID=$!
 
 # Give Celery a moment to start and verify it is running

@@ -43,7 +43,7 @@ def process_image_task(self, job_id: str):
     Reads the job, validates state, runs individual detectors, performs OCR and validation,
     updates results, handles safe state transitions, and retries on transient errors.
     """
-    logger.info(f"[{job_id}] Celery worker started processing image")
+    logger.info(f"[{job_id}] STAGE 1: Task started. Processing UUID initialization...")
     
     import uuid
     if isinstance(job_id, str):
@@ -53,19 +53,19 @@ def process_image_task(self, job_id: str):
     try:
         job = db.query(models.ImageProcessingJob).filter(models.ImageProcessingJob.id == job_id).first()
         if not job:
-            logger.error(f"[{job_id}] Job not found in database. Aborting.")
+            logger.error(f"[{job_id}] STAGE 1 ERROR: Job not found in database. Aborting.")
             return
 
         # Safe status transitions (only pending/processing jobs can be processed)
         if job.status not in ["pending", "processing"]:
-            logger.warning(f"[{job_id}] Invalid status transition from {job.status}. Aborting.")
+            logger.warning(f"[{job_id}] STAGE 1 WARNING: Invalid status transition from {job.status}. Aborting.")
             return
 
         # Update status to processing
         job.status = "processing"
         job.updated_at = func.now()
         db.commit()
-        logger.info(f"[{job_id}] Job status transitioned to 'processing'")
+        logger.info(f"[{job_id}] STAGE 1: Job status successfully transitioned to 'processing' in DB.")
 
         # Lazy imports of detector services to avoid circular imports or early heavy loads
         from app.services.image_validator import ImageValidator
@@ -75,86 +75,97 @@ def process_image_task(self, job_id: str):
         from app.services.ocr_service import OcrService
         from app.services.plate_validator import PlateValidator
 
+        # Stage 2: Image loaded
+        logger.info(f"[{job_id}] STAGE 2 START: Loading image and checking file path...")
         image_path = job.storage_path
         if not os.path.exists(image_path):
             raise FileNotFoundError(f"Image file not found at path: {image_path}")
+        logger.info(f"[{job_id}] STAGE 2: Image file exists. Validating dimensions...")
+        width, height, is_valid_dims = ImageValidator.validate(image_path)
+        logger.info(f"[{job_id}] STAGE 2 END: Dimensions validated ({width}x{height}, valid={is_valid_dims})")
 
-        # Compute perceptual hash
+        # Stage 5: Duplicate detection
+        logger.info(f"[{job_id}] STAGE 5 START: Computing perceptual hash for duplicate detection...")
         try:
             p_hash = DuplicateDetector.compute_hash(image_path)
             job.image_hash = p_hash
             db.commit()
+            logger.info(f"[{job_id}] STAGE 5: Perceptual hash computed: {p_hash}")
         except Exception as e:
-            logger.warning(f"[{job_id}] Duplicate pHash computation failed: {str(e)}")
+            logger.warning(f"[{job_id}] STAGE 5 WARNING: Duplicate pHash computation failed: {str(e)}")
             p_hash = None
 
-        # Check for duplicates
         is_duplicate = False
         similarity_score = 0.0
         if p_hash:
+            logger.info(f"[{job_id}] STAGE 5: Searching database for duplicate hashes...")
             duplicate_job_id, similarity_score = DuplicateDetector.find_duplicate(db, job_id, p_hash)
             if duplicate_job_id:
                 is_duplicate = True
-                logger.info(f"[{job_id}] Duplicate detected! Match with job: {duplicate_job_id} (Distance: {similarity_score})")
+                logger.info(f"[{job_id}] STAGE 5: Duplicate detected! Match with job: {duplicate_job_id} (Distance: {similarity_score})")
+        logger.info(f"[{job_id}] STAGE 5 END: Duplicate detection complete (is_duplicate={is_duplicate})")
 
-        # Validate dimensions
-        width, height, is_valid_dims = ImageValidator.validate(image_path)
-        
-        # Analyze blur
+        # Stage 3: Blur analysis
+        logger.info(f"[{job_id}] STAGE 3 START: Initiating blur analysis...")
         blur_score, is_blurry = BlurDetector.analyze(image_path)
-        
-        # Analyze brightness
-        brightness_avg, is_low_light = BrightnessDetector.analyze(image_path)
+        logger.info(f"[{job_id}] STAGE 3 END: Blur analysis complete (score={blur_score:.1f}, is_blurry={is_blurry})")
 
-        # Run OCR service (failsafe)
+        # Stage 4: Brightness analysis
+        logger.info(f"[{job_id}] STAGE 4 START: Initiating brightness analysis...")
+        brightness_avg, is_low_light = BrightnessDetector.analyze(image_path)
+        logger.info(f"[{job_id}] STAGE 4 END: Brightness analysis complete (average={brightness_avg:.1f}, is_low_light={is_low_light})")
+
+        # Stage 6: OCR/Tesseract
+        logger.info(f"[{job_id}] STAGE 6 START: Initiating local Tesseract OCR text extraction...")
         ocr_raw_text = None
         ocr_normalized_text = None
         ocr_confidence = None
         try:
             ocr_raw_text, ocr_normalized_text, ocr_confidence = OcrService.extract_text(image_path)
-            logger.info(f"[{job_id}] OCR Complete. Text: '{ocr_raw_text}', Conf: {ocr_confidence}")
+            logger.info(f"[{job_id}] STAGE 6: OCR execution complete. Raw Text parsed: '{ocr_raw_text}', Confidence: {ocr_confidence}")
         except Exception as e:
-            logger.warning(f"[{job_id}] OCR service failed non-critically: {str(e)}")
-            # Fail gracefully without crashing the whole pipeline
+            logger.warning(f"[{job_id}] STAGE 6 WARNING: OCR service failed non-critically: {str(e)}")
 
-        # Validate Indian Registration Format
         plate_number = None
         plate_format_valid = False
         plate_confidence = None
         if ocr_normalized_text:
+            logger.info(f"[{job_id}] STAGE 6: Validating registration number format...")
             plate_number, plate_format_valid, plate_confidence = PlateValidator.validate(
                 ocr_raw_text, ocr_normalized_text, ocr_confidence
             )
-            logger.info(f"[{job_id}] License Plate Validation: Detected: {plate_number}, Valid Format: {plate_format_valid}")
+            logger.info(f"[{job_id}] STAGE 6: License plate validation results: Number='{plate_number}', Format Valid={plate_format_valid}")
+        logger.info(f"[{job_id}] STAGE 6 END: Local OCR & validation completed.")
 
-        # Fallback to Gemini if plate format is invalid or no text detected, and key is configured
+        # Stage 7: Gemini/AI analysis (if used)
+        logger.info(f"[{job_id}] STAGE 7 START: Checking if Gemini API fallback is required...")
         if (not plate_format_valid or not ocr_normalized_text) and settings.GEMINI_API_KEY:
-            logger.info(f"[{job_id}] Local OCR failed to identify a valid Indian license plate. Invoking Gemini API fallback...")
+            logger.info(f"[{job_id}] STAGE 7: Local OCR failed to resolve a valid Indian license plate. Invoking Gemini API fallback...")
             try:
                 from app.services.gemini_service import GeminiService
                 gemini_res = GeminiService.analyze_image(image_path)
                 if gemini_res:
-                    # Update OCR and plate results if a plate was detected
                     gemini_plate = gemini_res.get("detected_number")
                     if gemini_plate:
                         ocr_raw_text = gemini_plate
                         ocr_normalized_text = "".join(char for char in gemini_plate if char.isalnum()).upper()
                         ocr_confidence = gemini_res.get("confidence")
-                        # Verify formatting with PlateValidator
                         plate_number, plate_format_valid, plate_confidence = PlateValidator.validate(
                             ocr_raw_text, ocr_normalized_text, ocr_confidence
                         )
-                        logger.info(f"[{job_id}] Gemini Fallback OCR complete: '{plate_number}' (Format valid: {plate_format_valid})")
+                        logger.info(f"[{job_id}] STAGE 7: Gemini Fallback OCR resolved number: '{plate_number}' (Valid format: {plate_format_valid})")
                     
-                    # Update quality issues if flagged by Gemini
                     if gemini_res.get("is_blurry") and not is_blurry:
                         is_blurry = True
-                        logger.info(f"[{job_id}] Gemini Fallback flagged image as blurry")
+                        logger.info(f"[{job_id}] STAGE 7: Gemini flagged image as blurry.")
                     if gemini_res.get("is_low_light") and not is_low_light:
                         is_low_light = True
-                        logger.info(f"[{job_id}] Gemini Fallback flagged image as low light")
+                        logger.info(f"[{job_id}] STAGE 7: Gemini flagged image as low light.")
             except Exception as e:
-                logger.error(f"[{job_id}] Gemini Fallback service failed: {str(e)}")
+                logger.error(f"[{job_id}] STAGE 7 ERROR: Gemini Fallback service failed: {str(e)}")
+        else:
+            logger.info(f"[{job_id}] STAGE 7: Gemini fallback skipped (either valid plate resolved locally, or key missing).")
+        logger.info(f"[{job_id}] STAGE 7 END: Gemini/AI analysis check finished.")
 
         # Compile issues list
         issues = []
@@ -182,7 +193,6 @@ def process_image_task(self, job_id: str):
             summary_status = "warning"
 
         # Determine overall confidence
-        # OCR/Plate confidence is used, adjusted by heuristic quality flags
         base_confidence = 1.0
         if plate_confidence is not None:
             base_confidence = plate_confidence
@@ -196,8 +206,8 @@ def process_image_task(self, job_id: str):
             
         overall_confidence = round(max(0.0, min(1.0, base_confidence)), 2)
 
-        # Save analysis result to Database
-        # Upsert logic
+        # Stage 8: Database update
+        logger.info(f"[{job_id}] STAGE 8 START: Writing analysis results and status update to DB...")
         res = db.query(models.AnalysisResult).filter(models.AnalysisResult.job_id == job.id).first()
         if not res:
             res = models.AnalysisResult(job_id=job.id)
@@ -230,11 +240,14 @@ def process_image_task(self, job_id: str):
         job.height = height
         job.updated_at = func.now()
         db.commit()
-        logger.info(f"[{job_id}] Image processing completed successfully. Status: {summary_status}")
+        logger.info(f"[{job_id}] STAGE 8 END: Database updates successfully committed.")
+
+        # Stage 9: Task completed
+        logger.info(f"[{job_id}] STAGE 9: Task completed successfully. Status: {summary_status}")
 
     except Exception as exc:
         db.rollback()
-        logger.error(f"[{job_id}] Processing encountered error: {str(exc)}")
+        logger.error(f"[{job_id}] STAGE ERROR: Processing encountered exception: {str(exc)}")
         
         # Don't retry on non-existent files or other fatal errors
         if isinstance(exc, FileNotFoundError):
@@ -247,10 +260,10 @@ def process_image_task(self, job_id: str):
 
         # Attempt retry for transient exceptions
         try:
-            logger.warning(f"[{job_id}] Attempting retry {self.request.retries + 1}/3 due to exception...")
+            logger.warning(f"[{job_id}] STAGE RETRY: Attempting retry {self.request.retries + 1}/3 due to exception...")
             raise self.retry(exc=exc)
         except MaxRetriesExceededError:
-            logger.error(f"[{job_id}] Max retries exceeded. Marking job as failed.")
+            logger.error(f"[{job_id}] STAGE ERROR: Max retries exceeded. Marking job as failed.")
             job = db.query(models.ImageProcessingJob).filter(models.ImageProcessingJob.id == job_id).first()
             if job:
                 job.status = "failed"
