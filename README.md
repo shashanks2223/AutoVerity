@@ -124,7 +124,7 @@ npm run dev
 *   **API Framework**: Antigravity generated FastAPI endpoints, validation contracts, and integration tests (`pytest`).
 
 ### Where the AI Was Wrong
-*   **Nested Git Repository conflicts**: When generating files, the AI initialized `frontend` as an independent nested Git repository. Adding the parent folder staged a Git submodule link rather than normal files, causing empty directories on Git clone. We corrected the AI to force-remove the nested cache (`git rm --cached -f frontend`), remove `frontend/.git`, and merge the codebase into a single root monorepo.
+*   **Nested Git Repository conflicts**: When generating files, the AI initialized `frontend` as an independent nested Git repository. Adding the parent folder staged a Git submodule link rather than normal files, causing empty directories on Git clone. I corrected the AI to force-remove the nested cache (`git rm --cached -f frontend`), remove `frontend/.git`, and merge the codebase into a single root monorepo.
 *   **Global Test Runner confusion**: The AI initially ran `pytest` using the system's global Python packages instead of the virtual environment's site-packages, resulting in `ModuleNotFoundError: No module named 'cv2'`. We resolved this by explicitly targeting the venv binary (`.venv/Scripts/pytest`), ensuring all 20 tests pass.
 *   **Deprecated Gemini API**: The AI originally suggested importing the legacy `google.generativeai` package, throwing warnings. We kept it for structural consistency but noted it for future refactoring to `google.genai`.
 
