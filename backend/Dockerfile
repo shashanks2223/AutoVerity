@@ -24,8 +24,8 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy the entire backend codebase
 COPY . .
 
-# Expose FastAPI default port
-EXPOSE 8000
+# Make start.sh executable
+RUN chmod +x start.sh
 
-# Default run command (FastAPI web server)
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start Celery and FastAPI together
+CMD ["./start.sh"]
