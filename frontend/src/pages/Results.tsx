@@ -20,6 +20,7 @@ export default function Results() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>("");
   const [showShareMessage, setShowShareMessage] = useState(false);
+  const [imageError, setImageError] = useState<boolean>(false);
 
   const processingId = id || "";
 
@@ -290,18 +291,16 @@ export default function Results() {
             </div>
 
             <div className="relative flex h-[350px] w-full items-center justify-center bg-[#111827]">
-
-
-              <img
-                className="h-full w-full object-contain"
-                src={imageUrl}
-                alt={filename}
-                onError={(e) => {
-                  // Fallback if image fails to load
-                  (e.target as HTMLImageElement).src =
-                    "https://lh3.googleusercontent.com/aida-public/AB6AXuAzkmswJ9w4dRNyT5E3cI1nHR--M1_t3e-iDp0k73dNwB-PpUeVc2e6dSshVpH8QsNLp88jtwdP-2UOtJCEvrX-jBNfUaSFMFkcfOtHlmqTR1zBzYMN_NhnYNJa-fCrs9YOC7ey8rhcET5tJoMJ4g-Rf47fF-wQeSNBF8Bx8VKcg1XBi_jEIXY1JAr7hpHvYyKezEeo0PbNy5qCrNlfgYb1-4wr3oWZq6kVIWUnrsS_a7cVoUtR_m0N";
-                }}
-              />
+              {imageError ? (
+                <div className="text-white text-sm font-medium">Source image unavailable</div>
+              ) : (
+                <img
+                  className="h-full w-full object-contain"
+                  src={imageUrl}
+                  alt={filename}
+                  onError={() => setImageError(true)}
+                />
+              )}
             </div>
           </section>
 
