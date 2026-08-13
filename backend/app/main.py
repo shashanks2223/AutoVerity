@@ -17,19 +17,16 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Configure CORS
-# Stitch React app runs on VITE_API_BASE_URL=http://localhost:8000 and connects from http://localhost:5173
 origins = [
     settings.FRONTEND_URL,
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://auto-verity.vercel.app",
-    "https://auto-verity-82t9j2g7e-kashyap4.vercel.app",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex=r"https://auto-verity-[a-z0-9-]+\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
