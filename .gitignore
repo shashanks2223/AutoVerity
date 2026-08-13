@@ -1,0 +1,47 @@
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+backend/.venv/
+frontend/node_modules/
+
+# Python Cache
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+backend/.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Node modules & frontend build
+node_modules/
+frontend/dist/
+frontend/dist-ssr/
+frontend/*.local
+
+# Environment variables
+.env
+backend/.env
+frontend/.env
+*.local
+!.env.example
+!backend/.env.example
+
+# Databases
+*.db
+*.sqlite3
+backend/media_processor.db
+backend/test.db
+test.db
+
+# Uploads / user media
+uploads/
+**/uploads/
+
+# OS specific
+.DS_Store
+Thumbs.db
