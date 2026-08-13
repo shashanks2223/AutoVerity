@@ -240,3 +240,68 @@ def test_history_list(client, db):
     data = response.json()
     assert data["total"] == 1
     assert data["items"][0]["filename"] == "image_1.jpg"
+
+
+def test_upload_and_results_uppercase_extension(client, mock_celery_task, db):
+    """Test upload and results retrieval of an image with an uppercase extension,
+    verifying dimensions and file info mapping."""
+    img_bytes = create_dummy_image_bytes(format="JPEG", size=(180, 180))
+    # Post image with uppercase extension
+    response = client.post(
+        "/api/v1/images/",
+        files={"file": ("vehicle_image.JPG", img_bytes, "image/jpeg")}
+    )
+    assert response.status_code == 202
+    data = response.json()
+    job_id = data["processing_id"]
+    
+    # Retrieve job from DB to confirm initial dimensions were recorded
+    job = db.query(models.ImageProcessingJob).filter(models.ImageProcessingJob.id == uuid.UUID(job_id)).first()
+    assert job is not None
+    assert job.width == 180
+    assert job.height == 180
+    assert job.filename == "vehicle_image.JPG"
+    # Ensure lowercase extension on disk
+    assert job.storage_path.endswith(".jpg")
+    
+    # Simulate worker update
+    job.status = "completed"
+    res = models.AnalysisResult(
+        job_id=job.id,
+        blur_score=150.0,
+        blur_threshold=100.0,
+        is_blurry=False,
+        brightness_average=100.0,
+        brightness_threshold=70.0,
+        is_low_light=False,
+        is_duplicate=False,
+        duplicate_similarity=0.0,
+        ocr_raw_text="MH12AB1234",
+        ocr_normalized_text="MH12AB1234",
+        ocr_confidence=0.9,
+        plate_detected_number="MH12AB1234",
+        plate_format_valid=True,
+        plate_confidence=0.9,
+        dimensions_width=180,
+        dimensions_height=180,
+        dimensions_valid=False,
+        summary_status="warning",
+        summary_confidence=0.9,
+        summary_issues=["Invalid dimensions or aspect ratio (180x180)"]
+    )
+    db.add(res)
+    db.commit()
+    
+    # Query API results
+    response_results = client.get(f"/api/v1/images/{job_id}/results")
+    assert response_results.status_code == 200
+    results_data = response_results.json()
+    
+    # Verify results data properties
+    assert results_data["image"]["filename"] == "vehicle_image.JPG"
+    assert results_data["image"]["width"] == 180
+    assert results_data["image"]["height"] == 180
+    assert results_data["analysis"]["dimensions"]["width"] == 180
+    assert results_data["analysis"]["dimensions"]["height"] == 180
+    assert results_data["analysis"]["dimensions"]["valid"] is False
+

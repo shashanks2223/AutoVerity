@@ -93,7 +93,7 @@ export default function Results() {
   };
 
   const getExtension = (filename: string) => {
-    return filename.split('.').pop() || 'jpg';
+    return (filename.split('.').pop() || 'jpg').toLowerCase();
   };
 
   if (loading) {
@@ -290,20 +290,7 @@ export default function Results() {
             </div>
 
             <div className="relative flex h-[350px] w-full items-center justify-center bg-[#111827]">
-              {/* License Plate Detection Box Overlay (shows dynamically if plate detected) */}
-              {analysis?.vehicle_number.detected_number && (
-                <div className="pointer-events-none absolute inset-0 z-10 p-4">
-                  <div className="absolute left-[40%] top-[55%] h-[12%] w-[20%] rounded border-2 border-[#6ffbbe] bg-[#6ffbbe]/15 shadow-[0_0_10px_rgba(111,251,190,0.5)]">
-                    <span className="absolute -top-6 left-0 rounded bg-[#6ffbbe] px-1 text-[10px] font-bold text-black uppercase tracking-wider">
-                      PLATE: {analysis.vehicle_number.detected_number} (
-                      {analysis.vehicle_number.confidence
-                        ? `${(analysis.vehicle_number.confidence * 100).toFixed(0)}%`
-                        : "N/A"}
-                      )
-                    </span>
-                  </div>
-                </div>
-              )}
+
 
               <img
                 className="h-full w-full object-contain"
