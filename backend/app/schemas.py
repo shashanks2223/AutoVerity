@@ -37,6 +37,7 @@ class ImageInfo(BaseModel):
     filename: str
     width: Optional[int] = None
     height: Optional[int] = None
+    image_url: Optional[str] = None
 
 
 # Analysis Sub-schemas

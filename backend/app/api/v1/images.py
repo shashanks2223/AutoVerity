@@ -2,7 +2,7 @@ import os
 import uuid
 import io
 import logging
-from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Query
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Query, Response
 from sqlalchemy.orm import Session
 from PIL import Image
 from typing import Optional
@@ -84,7 +84,8 @@ async def upload_image(
             storage_path=storage_path,
             status="pending",
             width=width,
-            height=height
+            height=height,
+            image_data=contents
         )
         db.add(db_job)
         db.commit()
@@ -153,7 +154,13 @@ async def get_image_results(processing_id: uuid.UUID, db: Session = Depends(get_
         raise HTTPException(status_code=400, detail="Analysis results not found for this completed job")
 
     # Map database models to output schema structure
-    image_info = schemas.ImageInfo(filename=job.filename, width=job.width, height=job.height)
+    image_url = f"{settings.API_V1_STR}/images/{job.id}/image"
+    image_info = schemas.ImageInfo(
+        filename=job.filename,
+        width=job.width,
+        height=job.height,
+        image_url=image_url
+    )
     
     analysis = schemas.DetailedAnalysis(
         blur=schemas.BlurAnalysis(is_blurry=res.is_blurry, score=res.blur_score, threshold=res.blur_threshold),
@@ -177,6 +184,21 @@ async def get_image_results(processing_id: uuid.UUID, db: Session = Depends(get_
         analysis=analysis,
         summary=summary
     )
+
+
+@router.get("/{processing_id}/image")
+async def get_original_image(processing_id: uuid.UUID, db: Session = Depends(get_db)):
+    """
+    Retrieve the original binary image bytes directly from PostgreSQL.
+    """
+    job = db.query(models.ImageProcessingJob).filter(models.ImageProcessingJob.id == processing_id).first()
+    if not job or not job.image_data:
+        raise HTTPException(
+            status_code=404,
+            detail="Original image not found"
+        )
+    return Response(content=job.image_data, media_type=job.mime_type)
+
 
 
 @router.get("/{processing_id}/failure", response_model=schemas.JobFailureResponse)

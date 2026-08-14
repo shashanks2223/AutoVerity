@@ -135,7 +135,9 @@ export default function Results() {
   // Construct image URL
   const baseApiUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
   const filename = results.image?.filename || "image.jpg";
-  const imageUrl = `${baseApiUrl}/uploads/${results.processing_id}.${getExtension(filename)}`;
+  const imageUrl = results.image?.image_url
+    ? `${baseApiUrl}${results.image.image_url}`
+    : `${baseApiUrl}/api/v1/images/${results.processing_id}/image`;
 
   const analysis = results.analysis;
   const summary = results.summary;
@@ -292,7 +294,7 @@ export default function Results() {
 
             <div className="relative flex h-[350px] w-full items-center justify-center bg-[#111827]">
               {imageError ? (
-                <div className="text-white text-sm font-medium">Source image unavailable</div>
+                <div className="text-white text-sm font-medium">Unable to load original uploaded image.</div>
               ) : (
                 <img
                   className="h-full w-full object-contain"
@@ -339,13 +341,12 @@ export default function Results() {
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-surface-container">
                 <div
-                  className={`h-full transition-all duration-1000 ${
-                    assessmentStatus === "good"
+                  className={`h-full transition-all duration-1000 ${assessmentStatus === "good"
                       ? "bg-green-500"
                       : assessmentStatus === "warning"
-                      ? "bg-amber-500"
-                      : "bg-red-500"
-                  }`}
+                        ? "bg-amber-500"
+                        : "bg-red-500"
+                    }`}
                   style={{ width: `${assessmentConfidence}%` }}
                 />
               </div>
@@ -430,4 +431,4 @@ function AnalysisCard({ module }: { module: AnalysisCardData }) {
       </div>
     </div>
   );
-}
+}

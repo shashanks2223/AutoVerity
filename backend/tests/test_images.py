@@ -305,3 +305,40 @@ def test_upload_and_results_uppercase_extension(client, mock_celery_task, db):
     assert results_data["analysis"]["dimensions"]["height"] == 180
     assert results_data["analysis"]["dimensions"]["valid"] is False
 
+
+def test_image_binary_data_storage_and_serving(client, db, mock_celery_task):
+    """Test PostgreSQL LargeBinary image storage and serving endpoint."""
+    img_bytes = create_dummy_image_bytes(format="PNG")
+    
+    # A. Upload an image
+    response = client.post(
+        "/api/v1/images/",
+        files={"file": ("test2.png", img_bytes, "image/png")}
+    )
+    assert response.status_code == 202
+    data = response.json()
+    job_id = data["processing_id"]
+    
+    # B. Verify image_data, filename, and mime_type is stored in DB
+    job = db.query(models.ImageProcessingJob).filter(models.ImageProcessingJob.id == uuid.UUID(job_id)).first()
+    assert job is not None
+    assert job.image_data == img_bytes
+    assert job.filename == "test2.png"
+    assert job.mime_type == "image/png"
+    
+    # E. Verify GET /api/v1/images/{job_id}/image returns 200 OK
+    serving_response = client.get(f"/api/v1/images/{job_id}/image")
+    assert serving_response.status_code == 200
+    
+    # F. Verify Content-Type is correct
+    assert serving_response.headers["content-type"] == "image/png"
+    
+    # G. Verify returned response bytes exactly match the uploaded image bytes
+    assert serving_response.content == img_bytes
+    
+    # H. Verify missing image returns 404
+    non_existent_uuid = str(uuid.uuid4())
+    missing_response = client.get(f"/api/v1/images/{non_existent_uuid}/image")
+    assert missing_response.status_code == 404
+
+
