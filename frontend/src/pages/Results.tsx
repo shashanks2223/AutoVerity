@@ -93,10 +93,6 @@ export default function Results() {
     }
   };
 
-  const getExtension = (filename: string) => {
-    return (filename.split('.').pop() || 'jpg').toLowerCase();
-  };
-
   if (loading) {
     return (
       <Layout title="Analysis Results">

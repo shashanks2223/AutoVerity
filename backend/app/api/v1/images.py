@@ -197,7 +197,7 @@ async def get_original_image(processing_id: uuid.UUID, db: Session = Depends(get
             status_code=404,
             detail="Original image not found"
         )
-    return Response(content=job.image_data, media_type=job.mime_type)
+    return Response(content=job.image_data, media_type=job.image_mime_type)
 
 
 

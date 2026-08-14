@@ -325,6 +325,8 @@ def test_image_binary_data_storage_and_serving(client, db, mock_celery_task):
     assert job.image_data == img_bytes
     assert job.filename == "test2.png"
     assert job.mime_type == "image/png"
+    assert job.image_filename == "test2.png"
+    assert job.image_mime_type == "image/png"
     
     # E. Verify GET /api/v1/images/{job_id}/image returns 200 OK
     serving_response = client.get(f"/api/v1/images/{job_id}/image")

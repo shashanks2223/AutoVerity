@@ -22,6 +22,22 @@ class ImageProcessingJob(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    @property
+    def image_filename(self):
+        return self.filename
+
+    @image_filename.setter
+    def image_filename(self, value):
+        self.filename = value
+
+    @property
+    def image_mime_type(self):
+        return self.mime_type
+
+    @image_mime_type.setter
+    def image_mime_type(self, value):
+        self.mime_type = value
+
     analysis_result = relationship(
         "AnalysisResult",
         back_populates="job",
