@@ -131,9 +131,7 @@ export default function Results() {
   // Construct image URL
   const baseApiUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
   const filename = results.image?.filename || "image.jpg";
-  const imageUrl = results.image?.image_url
-    ? `${baseApiUrl}${results.image.image_url}`
-    : `${baseApiUrl}/api/v1/images/${results.processing_id}/image`;
+  const imageUrl = `${baseApiUrl}/api/v1/images/${results.processing_id}/image`;
 
   const analysis = results.analysis;
   const summary = results.summary;
